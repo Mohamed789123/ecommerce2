@@ -155,6 +155,38 @@ export const addOrder = asynchandler(async (req, res, next) => {
 
 
 
+
+
+
+
+
+//================================================webhook=======================================================
+export const webhook = asynchandler(async (req, res, next) => {
+    const stripe = new Stripe(process.env.Stripe_secret)
+    const sig = req.headers['stripe-signature'];
+
+    let event;
+
+    try {
+        event = stripe.webhooks.constructEvent(req.body, sig, process.env.endpointSecret);
+    } catch (err) {
+        res.status(400).send(`Webhook Error: ${err.message}`);
+        return;
+    }
+
+    const { orderId } = event.data.object.metadata;
+    if (event.type = ! 'checkout.session.completed') {
+
+
+        await orderModel.findOneAndUpdate({ _id: orderId }, { status: "reject" })
+        return res.json({ msg: "failed" })
+    }
+    await orderModel.findOneAndUpdate({ _id: orderId }, { status: "placed" })
+    return res.json({ msg: "done" })
+
+
+});
+
 //====================================================cancelOrder=================================================
 export const cancelOrder = asynchandler(async (req, res, next) => {
     const { id } = req.params
