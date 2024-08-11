@@ -6,7 +6,8 @@ import couponModel from "../../db/models/coupon.model.js"
 import cartModel from "../../db/models/cart.model.js"
 import { createInvoice } from "../../utils/pdf.js";
 import sendEmail from "../../service/sendmail.js";
-
+import { payments } from "../../utils/payment.js";
+import Stripe from "stripe";
 
 
 
@@ -79,7 +80,7 @@ export const addOrder = asynchandler(async (req, res, next) => {
     }
 
 
-    ////////////////////////////////////////////////////////////////////
+    ////////////////////////////invoice////////////////////////////////////////
 
 
     const invoice = {
@@ -109,6 +110,45 @@ export const addOrder = asynchandler(async (req, res, next) => {
     ])
     ///////////////////////////////////////////////////////////////////
 
+    ////////////////////////////payment//////////////////////////////////////
+    if (payment == "visa") {
+        const stripe = new Stripe(process.env.Stripe_secret)
+
+        if (req.body?.copoun) {
+            const coupon = await stripe.coupons.create({
+                percent_off: req.body.copoun.amount,
+                duration: "once"
+            })
+            req.body.coupoId = coupon.id
+        }
+
+        const session = await payments({
+            stripe,
+            payment_method_types: ["card"],
+            mode: "payment",
+            customer_email: req.user.email,
+            metadata: {
+                orderId: order._id.toString()
+            },
+            success_url: `${req.protocol}://${req.headers.host}/order/success/${order._id}`,
+            cancel_url: `${req.protocol}://${req.headers.host}/order/cancelled/${order._id}`,
+            line_items: order.products.map((product) => {
+                return {
+                    price_data: {
+                        currency: "egp",
+                        product_data: {
+                            name: product.title,
+                        },
+                        unit_amount: product.price * 100
+                    },
+                    quantity: product.quantity
+                }
+            }),
+            discounts: req.body?.copoun ? [{ coupon: req.body.coupoId }] : []
+        })
+        return res.json({ msg: "done", url: session.url, order })
+    }
+    //////////////////////////////////////////////////////////////////
 
     return res.json({ msg: "done", order })
 })

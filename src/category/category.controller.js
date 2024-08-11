@@ -43,8 +43,7 @@ export const addCategory = asynchandler(async (req, res, next) => {
         model: categoryModel,
         id: category._id
     }
-    const x = 5
-    x = 4
+
     res.status(201).json({ msg: "done", category })
 })
 //============================================updateCategory================================================
